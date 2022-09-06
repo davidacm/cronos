@@ -108,10 +108,25 @@ export function msToHumanTime(t: number): string {
         if (i === 0 && n - 1970 > 0)
             stringDays = `${n - 1970} years, `
         // months or days.
-        else if (i>0 && n - 1 > 0)
+        else if (i > 0 && n - 1 > 0)
             stringDays += `${n - 1} ${i == 1 ? "months" : "days"}, `
     }
-    return stringDays + hours
+
+    let stringHours = ""
+    for (let [i, v] of hours.split(":").entries()) {
+        let n = Number(v)
+        switch (i) {
+            case 0:
+                stringHours = `${n}h, `
+                break
+            case 1:
+                stringHours += `${n}m, `
+                break
+            case 2:
+                stringHours += `${n}s`
+        }
+    }
+    return stringDays + stringHours
 }
 
 export const dateUtils = {
@@ -124,31 +139,31 @@ export const dateUtils = {
         let d = new Date(this.getCurrentStartDay())
         d = this.sumDay(d, -d.getDay())
         return d
-    }    ,
+    },
     getCurrentStartMonth(): Date {
         let d = new Date(this.getCurrentStartDay())
         d.setDate(1)
         return d
-    }    ,
+    },
 
     sumDay(date: Date, n: number): Date {
         let d = new Date(date)
-        d.setDate(date.getDate() +n)
+        d.setDate(date.getDate() + n)
         return d
     },
     sumWeek(date: Date, n: number): Date {
         let d = new Date(date)
-        d.setDate(date.getDate() +n*7)
+        d.setDate(date.getDate() + n * 7)
         return d
     },
     sumMonth(date: Date, n: number): Date {
         let d = new Date(date)
-        d.setMonth(date.getMonth() +n)
+        d.setMonth(date.getMonth() + n)
         return d
     },
     sumYear(date: Date, n: number): Date {
         let d = new Date(date)
-        d.setFullYear(date.getFullYear() +n)
+        d.setFullYear(date.getFullYear() + n)
         return d
     }
 }

@@ -5,8 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 import replace from '@rollup/plugin-replace'
 
 const pwaOptions: Partial<VitePWAOptions> = {
-  mode: 'development',
-  base: '/',
+  mode: 'production',
+  base: '/cronos/',
   includeAssets: ['favicon.svg'],
   manifest: {
     name: 'Cronos',
@@ -14,23 +14,23 @@ const pwaOptions: Partial<VitePWAOptions> = {
     theme_color: '#ffffff',
     icons: [
       {
-        src: 'pwa-192x192.png', // <== don't add slash, for testing
+        src: 'pwa-192x192.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        src: '/pwa-512x512.png', // <== don't remove slash, for testing
+        src: '/pwa-512x512.png',
         sizes: '512x512',
         type: 'image/png',
       },
       {
-        src: 'pwa-512x512.png', // <== don't add slash, for testing
+        src: 'pwa-512x512.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any maskable',
       },
       {
-        src: 'pwa-144x144.png', // <== don't add slash, for testing
+        src: 'pwa-144x144.png',
         sizes: '144x144',
         type: 'image/png',
         purpose: 'any',
@@ -71,6 +71,7 @@ if (selfDestroying)
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/cronos/',
   build: {
     sourcemap: process.env.SOURCE_MAP === 'true',
   },

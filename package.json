@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@chakra-ui/react": "^2.2.8",
-    "@emotion/react": "^11.10.0",
-    "@emotion/styled": "^11.10.0",
+    "@emotion/react": "^11.10.4",
+    "@emotion/styled": "^11.10.4",
+    "@mui/icons-material": "^5.10.3",
+    "@mui/material": "^5.10.3",
     "framer-motion": "^6.5.1",
     "mobx": "^6.6.1",
     "mobx-react-lite": "^3.4.0",

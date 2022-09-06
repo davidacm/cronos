@@ -1,4 +1,4 @@
-import { Instance, types} from "mobx-state-tree"
+import { Instance, types } from "mobx-state-tree"
 import persist from "./localStorage"
 type ReferenceIdentifier = string | number
 
@@ -10,27 +10,27 @@ const Timer = types.model("timer", {
     name: types.string,
     lastDuration: 0
 })
-.actions(self => ({
-    setName(name: string) {
-        self.name = name
-    },
-    setLastDuration(duration: number) {
-        self.lastDuration = duration
-    }
-}))
-export interface ITimer extends Instance<typeof Timer>{}
+    .actions(self => ({
+        setName(name: string) {
+            self.name = name
+        },
+        setLastDuration(duration: number) {
+            self.lastDuration = duration
+        }
+    }))
+export interface ITimer extends Instance<typeof Timer> { }
 
 
 export const MarkTime = types.model("markTime", {
     time: types.number,
     timer: types.safeReference(Timer)
 })
-.actions(self =>({
-    setTimer(timer: ITimer) {
-        self.timer = timer
-    }
-}))
-export interface IMarkTime extends Instance<typeof MarkTime>{}
+    .actions(self => ({
+        setTimer(timer: ITimer) {
+            self.timer = timer
+        }
+    }))
+export interface IMarkTime extends Instance<typeof MarkTime> { }
 
 
 function getMarkTime(mark: IMarkTime): number {
@@ -38,102 +38,117 @@ function getMarkTime(mark: IMarkTime): number {
 }
 
 
+/**
+ * this is used when the mark need to be updated temporally, for example if a timer is running before the given range and in the current range.
+ */
+export class TemporalMark implements IMarkTime {
+    time: number
+    timer: ITimer
+    constructor(time: number, timer: ITimer) {
+        this.time = time
+        this.timer = timer
+    }
+    setTimer(timer: ITimer) {
+        this.timer = timer
+    }
+}
+
 const Board = types.model("board", {
     id: types.identifier,
     name: types.string,
     timers: types.map(Timer),
     history: types.array(MarkTime),
-    mostRecent: types.array(types.safeReference(Timer, {acceptsUndefined: false}))
+    mostRecent: types.array(types.safeReference(Timer, { acceptsUndefined: false }))
 })
-.views(self => ({
-    get lastMark(): IMarkTime | undefined{
-        return self.history.at(-1)
-    },
+    .views(self => ({
+        get lastMark(): IMarkTime | undefined {
+            return self.history.at(-1)
+        },
 
-    getHistoryBetween(start: number, end: number): IMarkTime[] | undefined{
-        const posStart = getNearest(start, self.history, getMarkTime)
-        const posEnd = getNearest(end, self.history, getMarkTime, true)
-        if (posStart !== -1 && posEnd !== -1) {
-            const r = self.history.slice(posStart, posEnd+1)
-            if (r.length > 0) return r
-        }
-        return undefined
-    },
-
-    getPrevMark(time: number): IMarkTime | undefined {
-        const pos = getNearest(time, self.history, getMarkTime, true)
-        if (pos !== -1) return self.history[pos]
-        return undefined
-    }
-}))
-.actions(self => ({
-    setName(name: string) {
-        self.name = name
-    },
-
-    updateMostRecent(timer: ITimer) {
-        self.mostRecent.remove(timer)
-        self.mostRecent.push(timer)
-    },
-
-    addTimer(timer: ITimer) {
-        self.timers.put(timer)
-        this.updateMostRecent(timer)
-    },
-
-    deleteTimer(id: string) {
-        self.timers.delete(id)
-        // remove marks that are not stoper marks. That is, a mark with undefined timer, after another undefined timer mark.
-        for (let i=1; i<self.history.length; ++i) {
-            if (self.history[i-1].timer === undefined) {
-                self.history.splice(i, 1)
-                --i
+        getHistoryBetween(start: number, end: number): IMarkTime[] | undefined {
+            const posStart = getNearest(start, self.history, getMarkTime)
+            const posEnd = getNearest(end, self.history, getMarkTime, true)
+            if (posStart !== -1 && posEnd !== -1) {
+                const r = self.history.slice(posStart, posEnd + 1)
+                if (r.length > 0) return r
             }
-        }
-        if (self.history.length > 0 && self.history[0].timer === undefined)
-            self.history.splice(0, 1)
-    },
+            return undefined
+        },
 
-    startTimer(timer: ITimer | undefined, time: number) {
-        if (self.lastMark && self.lastMark.time > time) {
-            throw Error("The mark time can't be less than the last mark time")
+        getPrevMark(time: number): IMarkTime | undefined {
+            const pos = getNearest(time, self.history, getMarkTime, true)
+            if (pos !== -1) return self.history[pos]
+            return undefined
         }
-        if (self.lastMark) {
-            if (timer === self.lastMark.timer) return
-            self.lastMark.timer?.setLastDuration(time -self.lastMark.time)
-        }
-        const m = MarkTime.create({time: time})
-        self.history.push(m)
-        if (timer) {
-            m.setTimer(timer)
+    }))
+    .actions(self => ({
+        setName(name: string) {
+            self.name = name
+        },
+
+        updateMostRecent(timer: ITimer) {
+            self.mostRecent.remove(timer)
+            self.mostRecent.push(timer)
+        },
+
+        addTimer(timer: ITimer) {
+            self.timers.put(timer)
             this.updateMostRecent(timer)
-        }
-    },
+        },
 
-    stopTimer(time: number) {
-        this.startTimer(undefined, time)
-    },
-    updateTimers(timers: ITimer[]) {
-        for (const k of timers) {
-            self.timers.put(k)
-        }
-    },
+        deleteTimer(id: string) {
+            self.timers.delete(id)
+            // remove marks that are not stoper marks. That is, a mark with undefined timer, after another undefined timer mark.
+            for (let i = 1; i < self.history.length; ++i) {
+                if (self.history[i - 1].timer === undefined) {
+                    self.history.splice(i, 1)
+                    --i
+                }
+            }
+            if (self.history.length > 0 && self.history[0].timer === undefined)
+                self.history.splice(0, 1)
+        },
 
-    updateHistory(marks: IMarkTime[]): boolean | never {
-        if (marks.length == 0)
-            return false
-        if (self.history.length == 0)
-            self.history.replace(marks)
-        else if ((marks.at(-1) as IMarkTime).time < self.history[0].time)
-            self.history.replace([...marks, ...self.history])
-        else if ((self.lastMark as IMarkTime).time < marks[0].time)
-            self.history.replace([...self.history, ...marks])
-        else
-            throw Error(`error updating the istory of marks. The specified items are inside the current range of the history. in board ${self.id} name: ${self.name}`)
-        return true
-    }
-}))
-export interface IBoard extends Instance<typeof Board>{}
+        startTimer(timer: ITimer | undefined, time: number) {
+            if (self.lastMark && self.lastMark.time > time) {
+                throw Error("The mark time can't be less than the last mark time")
+            }
+            if (self.lastMark) {
+                if (timer === self.lastMark.timer) return
+                self.lastMark.timer?.setLastDuration(time - self.lastMark.time)
+            }
+            const m = MarkTime.create({ time: time })
+            self.history.push(m)
+            if (timer) {
+                m.setTimer(timer)
+                this.updateMostRecent(timer)
+            }
+        },
+
+        stopTimer(time: number) {
+            this.startTimer(undefined, time)
+        },
+        updateTimers(timers: ITimer[]) {
+            for (const k of timers) {
+                self.timers.put(k)
+            }
+        },
+
+        updateHistory(marks: IMarkTime[]): boolean | never {
+            if (marks.length == 0)
+                return false
+            if (self.history.length == 0)
+                self.history.replace(marks)
+            else if ((marks.at(-1) as IMarkTime).time < self.history[0].time)
+                self.history.replace([...marks, ...self.history])
+            else if ((self.lastMark as IMarkTime).time < marks[0].time)
+                self.history.replace([...self.history, ...marks])
+            else
+                throw Error(`error updating the istory of marks. The specified items are inside the current range of the history. in board ${self.id} name: ${self.name}`)
+            return true
+        }
+    }))
+export interface IBoard extends Instance<typeof Board> { }
 
 
 export interface IGenerator {
@@ -145,7 +160,7 @@ export interface IFactory {
     createBoard(name: string): IBoard
     createTimer(name: string, containerId: string): ITimer
     createMarkTime(timer: ITimer, board: IBoard): IMarkTime
-} 
+}
 
 
 class Generator implements IGenerator {
@@ -166,21 +181,21 @@ class Factory implements IFactory {
     }
 
     public createBoard(name: string): IBoard {
-        return Board.create({id: this.generator.generateUId(), name: name})
+        return Board.create({ id: this.generator.generateUId(), name: name })
     }
 
     public createTimer(name: string, containerId: string): ITimer {
-        return Timer.create({id: this.generator.generateUId(), name: name})
+        return Timer.create({ id: this.generator.generateUId(), name: name })
     }
 
     public createMarkTime(timer: ITimer, board: IBoard): IMarkTime {
-        return MarkTime.create({timer: timer.id, time: this.generator.getCurrentTime()})
+        return MarkTime.create({ timer: timer.id, time: this.generator.getCurrentTime() })
     }
 }
 
-    const Boards = types.model({
-        boards: types.map(Board),
-        currentBoard: types.safeReference(Board)
+const Boards = types.model({
+    boards: types.map(Board),
+    currentBoard: types.safeReference(Board)
 }).actions(self => ({
     addBoard(board: IBoard) {
         self.boards.put(board)
@@ -190,7 +205,7 @@ class Factory implements IFactory {
         self.boards.delete(id)
     }
 }))
-export interface IBoards extends Instance<typeof Boards>{}
+export interface IBoards extends Instance<typeof Boards> { }
 
 function initialize() {
     const f = new Factory(new Generator())
@@ -204,8 +219,9 @@ function initialize() {
     b.addTimer(f.createTimer("redes sociales", ""))
     b.addTimer(f.createTimer("tertulia", ""))
     b.addTimer(f.createTimer("hablar con amigos", ""))
-    return {factory: f, store: s}
+    return { factory: f, store: s }
 }
 
-export const {factory, store} = initialize()
+export const { factory, store } = initialize()
 persist("Cronos", store)
+
