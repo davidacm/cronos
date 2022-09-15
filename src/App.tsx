@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, SyntheticEvent } from 'react'
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Box from '@mui/material/Box';
@@ -50,7 +50,7 @@ function a11yProps(index: number) {
 function App() {
   const [value, setValue] = useState(0);
 
-  const handleChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleChange = (event: SyntheticEvent, newValue: number) => {
     setValue(newValue);
   };
 
@@ -58,7 +58,7 @@ function App() {
     <div className="App">
       <Container maxWidth="sm">
         <Box sx={{ width: '100%' }}>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', position:'fixed', top:0, maxHeight:20}}>
             <Tabs value={value} onChange={handleChange} aria-label="basic tabs example">
               <Tab label="stopwatch" {...a11yProps(0)} />
               <Tab label="edit timers" {...a11yProps(1)} />

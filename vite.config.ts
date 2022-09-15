@@ -69,11 +69,24 @@ if (reload) {
 if (selfDestroying)
   pwaOptions.selfDestroying = selfDestroying
 
+
 // https://vitejs.dev/config/
 export default defineConfig({
   base: '/cronos/',
   build: {
     sourcemap: process.env.SOURCE_MAP === 'true',
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes("node_modules")) {
+            if (id.includes("@material-ui")) {
+                  return "vendor_mui"
+              }
+              return "vendor"
+          }
+          },
+      }
+    }
   },
 
   plugins: [

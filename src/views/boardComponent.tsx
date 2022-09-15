@@ -1,59 +1,13 @@
-import { useEffect, useState, useId, useRef, Ref } from 'react'
+import { Box, Button, Divider, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack } from '@mui/material'
+import { Add as AddIcon, Stop as StopIcon, TimelapseRounded } from '@mui/icons-material'
 import { observer } from "mobx-react-lite"
-import Box from '@mui/material/Box';
-import Drawer from '@mui/material/Drawer';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import Stack from '@mui/material/Stack';
-import { styled } from '@mui/material/styles';
-import Button from '@mui/material/Button';
-import Avatar from '@mui/material/Avatar';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemAvatar from '@mui/material/ListItemAvatar';
-import ListItemText from '@mui/material/ListItemText';
-import DialogTitle from '@mui/material/DialogTitle';
-import Dialog from '@mui/material/Dialog';
-import PersonIcon from '@mui/icons-material/Person';
-import AddIcon from '@mui/icons-material/Add';
-import Typography from '@mui/material/Typography';
-import { blue } from '@mui/material/colors';
-import { AlertDialog, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay } from "@chakra-ui/react"
+import { useEffect, useRef, useState } from 'react'
+
+import { ButtonNewDialog, ConfirmDialog, GetInputDialog, Item, useToggleFocus } from "./components"
+
 import { factory, IBoard, IMarkTime, ITimer, TemporalMark } from "../logic/store"
-import { beepSlower, dateUtils, msToHumanTime, uuid } from '../logic/utils'
-import { clone, getSnapshot } from 'mobx-state-tree';
-import { DialogActions, DialogContent, DialogContentText, ListItemButton, Paper } from '@mui/material';
+import { dateUtils, msToHumanTime, uuid } from '../logic/utils'
 
-
-const Item = styled(Paper)(({ theme }) => ({
-  backgroundColor: theme.palette.mode === 'dark' ? '#1A2027' : '#fff',
-  ...theme.typography.body2,
-  padding: theme.spacing(1),
-  textAlign: 'center',
-  color: theme.palette.text.secondary
-}))
-
-
-function useToggleFocus<R extends HTMLElement>(): [boolean, () => void, Ref<R>, () => void] {
-  const focusRef = useRef<R>(null)
-  const [_toggle, _setToggle] = useState(false)
-  const [shouldFocus, setShouldFocus] = useState(false)
-
-  useEffect(() => {
-    if (shouldFocus) {
-      focusRef.current?.focus()
-      setShouldFocus(false)
-    }
-  })
-  const setFocus = () => setShouldFocus(true)
-  const toggle = () => {
-    if (_toggle) {
-      _setToggle(false)
-      setFocus()
-    }
-    else _setToggle(true)
-  }
-  return [_toggle, toggle, focusRef, setFocus]
-}
 
 function createTimer(board: IBoard, name: string) {
   board.addTimer(factory.createTimer(name, board.id))
@@ -74,77 +28,6 @@ function toggleTimer(board: IBoard, t: ITimer, lastMark: number | undefined) {
 }
 
 
-type DialogCallback = (value: string) => void
-type SimpleDialogProps = { open: boolean, title: string, labelConfirm: string, onOk: DialogCallback, onCancel: DialogCallback }
-type DialogInputProps = SimpleDialogProps & { labelInput: string, initialValue?: string }
-
-function GetInputDialog(p: DialogInputProps) {
-  const idInput = useId()
-  const refInput = useRef<HTMLInputElement>(null)
-  let initialValue = ""
-  useEffect(() => {
-    if (p.initialValue) initialValue = p.initialValue
-  }, [p.initialValue])
-  const handleOK = () => {
-    p.onOk(refInput.current!.value)
-  };
-
-  const handleCancel = () => {
-    p.onCancel("")
-  };
-  return (
-    <Dialog open={p.open} onClose={handleCancel}>
-      <DialogTitle>{p.title}</DialogTitle>
-      <DialogContent>
-        <label htmlFor={idInput}>{p.labelInput}</label>
-        <input id={idInput} autoFocus type="text" ref={refInput} defaultValue={initialValue} />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleCancel}>Cancel</Button>
-        <Button onClick={handleOK}>{p.labelConfirm}</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-type ConfirmDialogProps = SimpleDialogProps & { description: string }
-function ConfirmDialog(p: ConfirmDialogProps) {
-  const handleOK = () => {
-    p.onOk("ok")
-  };
-  const handleCancel = () => {
-    p.onCancel("cancel")
-  };
-
-  return (<Dialog open={p.open} onClose={handleCancel}>
-    <DialogTitle>{p.title}</DialogTitle>
-    <DialogContent>
-      <DialogContentText>
-        {p.description}
-      </DialogContentText>
-    </DialogContent>
-    <DialogActions>
-      <Button autoFocus onClick={handleCancel}>Cancel</Button>
-      <Button onClick={handleOK}>{p.labelConfirm}</Button>
-    </DialogActions>
-  </Dialog>)
-}
-
-
-function ButtonNewDialog(p: Omit<DialogInputProps, 'onCancel' | 'open' | 'id'> & { labelOpen: string }) {
-  const [open, toggleOpen, focusRef] = useToggleFocus<HTMLButtonElement>()
-
-  const handleOk = (value: string) => {
-    p.onOk(value)
-    toggleOpen()
-  }
-
-  if (!open) return (<Button variant="outlined" onClick={toggleOpen} ref={focusRef}>
-    {p.labelOpen}
-  </Button>)
-
-  return (<GetInputDialog open={open} title={p.title} labelInput={p.title} labelConfirm={p.labelConfirm} onOk={handleOk} onCancel={toggleOpen} />)
-}
 
 
 export const TimerComponent = observer((p: { timer: ITimer, lastMark: number | undefined }) => {
@@ -159,56 +42,73 @@ export const TimerComponent = observer((p: { timer: ITimer, lastMark: number | u
     return undefined
   }, [p.lastMark])
 
-  return (<span>{p.timer.name}. {duration}</span>)
+  return (<>{p.timer.name}. {duration}</>)
+})
+
+type WrapperTimerNode = (p: { timer: ITimer, lastMark: number | undefined, children: any }) => any
+export const TimersView = observer((p: { board: IBoard, WrapperTimer: WrapperTimerNode }) => {
+  const { board, WrapperTimer } = p
+
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = 100000
+      console.log("actualizando scroll", uuid.getId())
+    }
+  })
+  console.log("construyendo board", uuid.getId(), board.history.length, board.lastMark?.time, board.lastMark?.timer?.id)
+
+  return (<Box style={{ maxHeight: 500, overflow: 'auto' }} ref={listRef}>
+    <List>
+      {board.mostRecent.map(v => {
+        let l: number | undefined = undefined
+        if (board.lastMark && v.id === board.lastMark.timer?.id)
+          l = board.lastMark.time
+        return (<ListItem key={v.id} sx={{ width: '100vw' }}>
+          <WrapperTimer timer={v} lastMark={l}>
+            <TimerComponent timer={v} lastMark={l} />
+          </WrapperTimer>
+        </ListItem>)
+      })}
+    </List>
+  </Box>
+  )
 })
 
 
-export const TimersView = observer((p: { board: IBoard, WrapperTimer: (p: { timer: ITimer, lastMark: number | undefined, children: any }) => any }) => {
-  const b = p.board
-  console.log("construyendo board", uuid.getId(), b.history.length, b.lastMark?.time, b.lastMark?.timer?.id)
-  const WrapperTimer = p.WrapperTimer
-
-  return (<Stack direction={'column'} spacing='12px'>
-    {b.mostRecent.map(v => {
-      let l: number | undefined = undefined
-      if (b.lastMark && v.id === b.lastMark.timer?.id)
-        l = b.lastMark.time
-      return (<Box key={v.id}>
-        <WrapperTimer timer={v} lastMark={l}>
-          <TimerComponent timer={v} lastMark={l} />
-        </WrapperTimer>
-      </Box>)
-    })}
-  </Stack>
-  )
+export const TimersFooter = observer((p: { board: IBoard }) => {
+  return (<>
+    <Divider />
+    <Stack spacing={2} direction='row' sx={{ width: '100%' }}>
+      {p.board.lastMark?.timer && (
+        <Button onClick={() => p.board.stopTimer(factory.generator.getCurrentTime())} startIcon={<StopIcon />}>
+          stop {p.board.lastMark.timer.name}
+        </Button>
+      )}
+      <ButtonNewDialog labelOpen='new timer' title='new Timer' labelInput='timer name' labelConfirm='create' onOk={(n) => createTimer(p.board, n)} />
+    </Stack>
+  </>)
 })
 
 
 export const Stopwatch = observer((p: { board: IBoard }) => {
   const Wrapper = (wp: { timer: ITimer, lastMark: number | undefined, children: any }) => (
-    <Item>
-      <button
-        onClick={() => toggleTimer(p.board, wp.timer, wp.lastMark)}>
+    <ListItemButton autoFocus={wp.lastMark !== undefined}
+      onClick={() => toggleTimer(p.board, wp.timer, wp.lastMark)}>
+      {wp.lastMark !== undefined && (<ListItemIcon><TimelapseRounded /></ListItemIcon>)}
+      <ListItemText>
         {wp.children}
-      </button>
-    </Item>
+      </ListItemText>
+    </ListItemButton>
   )
 
-  return (<Box sx={{ width: '100vh' }}>
+  return (<Box sx={{ width: '100vw', position: 'fixed', bottom: 0 }}>
     <Stack spacing={2}>
-      <TimersView board={p.board} WrapperTimer={Wrapper} />
-      <Item>
-        <Stack spacing={2} direction='row'>
-          {p.board.lastMark?.timer && (
-            <Item>
-              <button onClick={() => p.board.stopTimer(factory.generator.getCurrentTime())}>stop {p.board.lastMark.timer.name}</button>
-            </Item>
-          )}
-          <Item>
-            <ButtonNewDialog labelOpen='new timer' title='new Timer' labelInput='timer' labelConfirm='create' onOk={(n) => createTimer(p.board, n)} />
-          </Item>
-        </Stack>
-      </Item>
+      <Box>
+        <TimersView board={p.board} WrapperTimer={Wrapper} />
+      </Box>
+      <TimersFooter board={p.board} />
+
     </Stack>
   </Box>
   )
@@ -250,37 +150,55 @@ export const EditTimers = observer((p: { board: IBoard }) => {
         return (<ConfirmDialog
           title={`Delete timer ${wp.timer.name}?`}
           description={`Are you sure to delete the timer ${wp.timer.name}? This action will delete this timer and it's related activity. This action can't be undone`}
-          onCancel = { handleCloseDialog }
-          labelConfirm ={`Delete ${wp.timer.name}`}
-          onOk = {_delete}
-          open = { openDialog === 2}
-          />)
+          onCancel={handleCloseDialog}
+          labelConfirm={`Delete ${wp.timer.name}`}
+          onOk={_delete}
+          open={openDialog === 2}
+        />)
       default:
-return (<>
-  <Button ref={focusRef} onClick={toggleDrawer}>{wp.children}</Button>
-  <Drawer open={openDrawer} onClick={handleKeyMouse} onKeyDown={handleKeyMouse}>
-    <List>
-      <ListItem disablePadding>
-        <ListItemButton autoFocus onClick={() => setOpenDialog(1)}>
-          <ListItemText primary="Rename" />
-        </ListItemButton>
-      </ListItem>
-      <ListItem disablePadding>
-        <ListItemButton onClick={() => setOpenDialog(2)}>
-          <ListItemText primary="Delete" />
-        </ListItemButton>
-      </ListItem>
-    </List>
-  </Drawer>
-</>)
+        return (<>
+          <Button ref={focusRef} onClick={toggleDrawer} aria-expanded={false}>{wp.children}</Button>
+          <Drawer open={openDrawer} onClick={handleKeyMouse} onKeyDown={handleKeyMouse} >
+            <List>
+              <ListItem disablePadding>
+                <ListItemButton autoFocus onClick={() => setOpenDialog(1)}>
+                  <ListItemText primary="Rename" />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => setOpenDialog(2)}>
+                  <ListItemText primary="Delete" />
+                </ListItemButton>
+              </ListItem>
+            </List>
+          </Drawer>
+        </>)
     }
   }
 
-return (<Stack direction={'column'}>
-  <TimersView board={p.board} WrapperTimer={Wrapper} />
-  <ButtonNewDialog labelOpen='new timer' title='new Timer' labelInput='timer' labelConfirm='create' onOk={(n) => createTimer(p.board, n)} />
-</Stack>
-)
+  return (<Box sx={{ width: '100vw' }}>
+    <Stack spacing={2}>
+      <Box style={{ maxHeight: 500, overflow: 'auto', position: 'fixed', bottom: 35 }}>
+        <List style={{}}>
+          <TimersView board={p.board} WrapperTimer={Wrapper} />
+        </List>
+      </Box>
+      <Box style={{ maxHeight: 25, position: 'fixed', bottom: 0, width: '100%' }}>
+        <Divider />
+        <Stack spacing={2} direction='row'>
+          {p.board.lastMark?.timer && (
+            <Box>
+              <button onClick={() => p.board.stopTimer(factory.generator.getCurrentTime())}>stop {p.board.lastMark.timer.name}</button>
+            </Box>
+          )}
+          <Box>
+            <ButtonNewDialog labelOpen='new timer' title='new Timer' labelInput='timer' labelConfirm='create' onOk={(n) => createTimer(p.board, n)} />
+          </Box>
+        </Stack>
+      </Box>
+    </Stack>
+  </Box>
+  )
 })
 
 export const MarkTimeEntry = observer((p: { startMark: IMarkTime, endMark: IMarkTime | undefined }) => {
