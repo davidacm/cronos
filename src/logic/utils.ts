@@ -136,12 +136,12 @@ export const dateUtils = {
         return d
     },
     getCurrentStartWeek(): Date {
-        let d = new Date(this.getCurrentStartDay())
-        d = this.sumDay(d, -d.getDay())
+        let d = dateUtils.getCurrentStartDay()
+        d = dateUtils.sumDay(d, -d.getDay())
         return d
     },
     getCurrentStartMonth(): Date {
-        let d = new Date(this.getCurrentStartDay())
+        let d = dateUtils.getCurrentStartDay()
         d.setDate(1)
         return d
     },

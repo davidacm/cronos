@@ -54,7 +54,7 @@ export function GetInputDialog(p: DialogInputProps) {
             <DialogTitle>{p.title}</DialogTitle>
             <DialogContent sx={{ height: 300 }}>
                 <InputLabel htmlFor={idInput} >{p.labelInput}</InputLabel>
-                <TextField id={idInput} fullWidth autoFocus type="text" ref={refInput} defaultValue={p.initialValue} />
+                <TextField id={idInput} fullWidth autoFocus type="text" inputRef={refInput} defaultValue={p.initialValue} />
             </DialogContent>
             <DialogActions sx={{ width: '100vw', position: 'fixed', bottom: 0 }}>
                 <ButtonGroup fullWidth size='large'>

@@ -1,11 +1,13 @@
-import { Box, Button, Divider, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Stack } from '@mui/material'
-import { Add as AddIcon, Stop as StopIcon, TimelapseRounded } from '@mui/icons-material'
+import { SyntheticEvent, useEffect, useRef, useState } from 'react'
+import { Box, Button, Divider, Drawer, FormControlLabel, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Radio, RadioGroup, Stack } from '@mui/material'
+import { Add as AddIcon, ArrowLeftRounded, ArrowRight, ArrowRightRounded, Stop as StopIcon, TimelapseRounded } from '@mui/icons-material'
+
 import { observer } from "mobx-react-lite"
-import { useEffect, useRef, useState } from 'react'
+
 
 import { ButtonNewDialog, ConfirmDialog, GetInputDialog, Item, useToggleFocus } from "./components"
 
-import { factory, IBoard, IMarkTime, ITimer, TemporalMark } from "../logic/store"
+import { factory, getHistoryRange, getSummaryRange, IBoard, IMarkTime, ITimer, ReportMark, TimerSummary } from "../logic/store"
 import { dateUtils, msToHumanTime, uuid } from '../logic/utils'
 
 
@@ -157,7 +159,7 @@ export const EditTimers = observer((p: { board: IBoard }) => {
         />)
       default:
         return (<>
-          <Button ref={focusRef} onClick={toggleDrawer} aria-expanded={false}>{wp.children}</Button>
+          <Button ref={focusRef} onClick={toggleDrawer}>{wp.children}</Button>
           <Drawer open={openDrawer} onClick={handleKeyMouse} onKeyDown={handleKeyMouse} >
             <List>
               <ListItem disablePadding>
@@ -201,49 +203,179 @@ export const EditTimers = observer((p: { board: IBoard }) => {
   )
 })
 
-export const MarkTimeEntry = observer((p: { startMark: IMarkTime, endMark: IMarkTime | undefined }) => {
-  const [endTime, setEndTime] = useState(p.endMark ? p.endMark.time : factory.generator.getCurrentTime())
+export function MarkTimeEntry(p: { mark: ReportMark }) {
+  const mark = p.mark
+  const [duration, setDuration] = useState(mark.duration ? mark.duration : factory.generator.getCurrentTime() - mark.time)
 
   useEffect(() => {
-    if (!p.endMark) {
-      let iv = setInterval(() => setEndTime(Date.now()), 1000)
+    if (!mark.duration) {
+      let iv = setInterval(() => setDuration(Date.now() - mark.time), 1000)
       return () => clearInterval(iv)
     }
     return undefined
-  }, [p.endMark])
+  }, [p.mark])
 
-  return (<span>{p.startMark.timer!.name}: {msToHumanTime(endTime - p.startMark.time)}</span>)
-})
+  return (<tr>
+    <td>
+      {mark.timer!.name}
+    </td>
+    <td>
+      {new Date(mark.time).toLocaleTimeString()}
+    </td>
+    <td>
+      {msToHumanTime(duration)}
+    </td>
+  </tr>)
+}
+
+
+interface IDatePicker {
+  startDate: Date
+  endDate: Date
+  setStartDate(d: Date): void
+  setEndDate(d: Date): void
+}
+
+
+function useDatePicker(): IDatePicker {
+  const [startDate, setStartDate] = useState<Date>(dateUtils.getCurrentStartDay)
+  const [endDate, setEndDate] = useState<Date>(dateUtils.sumDay(startDate, 1))
+  return { startDate, endDate, setStartDate, setEndDate }
+}
+
+
+function RangeDatePicker(props: { dateRange: IDatePicker }) {
+  const d = props.dateRange
+  const [rangeType, setRangeType] = useState("day")
+
+  type FNStart = () => Date
+  type FNSum = (d: Date, n: number) => Date
+  const setRange = (fnStart: FNStart, fnSum: FNSum) => {
+    const start = fnStart()
+    d.setStartDate(start)
+    d.setEndDate(fnSum(start, 1))
+  }
+  const addToRange = (fnSum: FNSum, n: number) => {
+    d.setStartDate(fnSum(d.startDate, n))
+    d.setEndDate(fnSum(d.endDate, n))
+  }
+  const fnSumbs: Record<string, [FNStart, FNSum]> = {
+    day: [dateUtils.getCurrentStartDay, dateUtils.sumDay],
+    week: [dateUtils.getCurrentStartWeek, dateUtils.sumWeek],
+    month: [dateUtils.getCurrentStartMonth, dateUtils.sumMonth]
+  }
+
+  const onSelectRadio = (e: SyntheticEvent<HTMLInputElement>) => {
+    const v = e.currentTarget.value
+    setRangeType(v)
+    setRange(fnSumbs[v]![0], fnSumbs[v][1])
+  }
+
+  return (<div>
+    <RadioGroup defaultValue="day" onChange={onSelectRadio}>
+      <Stack direction="row">
+        <FormControlLabel label="Day" value="day" control={<Radio />} />
+        <FormControlLabel label="Week" value="week" control={<Radio />} />
+        <FormControlLabel label="Month" value="month" control={<Radio />} />
+      </Stack>
+    </RadioGroup>
+    <Stack direction="row">
+      <Button onClick={() => addToRange(fnSumbs[rangeType][1], -1)} startIcon={<ArrowLeftRounded />}>Prev {rangeType}</Button>
+      <Button onClick={() => addToRange(fnSumbs[rangeType][1], 1)} endIcon={<ArrowRightRounded />}>Next {rangeType}</Button>
+    </Stack>
+    <Button>from: {d.startDate.toLocaleDateString()}, to: {d.endDate.toLocaleDateString()}</Button>
+  </div>)
+}
+
+
+function ListHistory(p: { marks: ReportMark[] }) {
+  return (<table>
+    <tr>
+      <th>
+        timer
+      </th>
+      <th>
+        date
+      </th>
+      <th>
+        Duration
+      </th>
+    </tr>
+    {p.marks.map((v, i) => (<MarkTimeEntry key={i} mark={v} />))}
+  </table>)
+}
+
+
+function SumaryHistory(p: { summary: TimerSummary[] }) {
+  const [data, setData] = useState([...p.summary])
+  const [sortBy, setSortBy] = useState("duration")
+  const fnSorts = {
+    duration: (a: TimerSummary, b: TimerSummary) => a.lastDuration == b.lastDuration ? 0 : a.lastDuration > b.lastDuration ? -1 : 1,
+    count: (a: TimerSummary, b: TimerSummary) => a.count == b.count ? 0 : a.count > b.count ? -1 : 1
+  }
+  const handleSort = () => {
+    switch (sortBy) {
+      case "duration":
+        setData([...p.summary].sort(fnSorts.duration))
+        break
+      case "count":
+        setData([...p.summary].sort(fnSorts.count))
+        break
+    }
+  }
+
+  useEffect(() => {
+    handleSort()
+  }, [p.summary])
+  return (<table>
+    <tr>
+      <th>
+        timer
+      </th>
+      <th>
+        <Button onClick={() => setSortBy("duration")}>
+          Total duration
+        </Button>
+      </th>
+      <th>
+        <Button onClick={() => setSortBy("count")}>
+          Count
+        </Button>
+      </th>
+    </tr>
+    {data.map((v) => (<tr key={v.id}>
+      <td>
+        {v.name}
+      </td>
+      <td>
+        {msToHumanTime(v.lastDuration)}
+      </td>
+      <td>
+        {v.count}
+      </td>
+    </tr>))}
+  </table>)
+}
 
 export const LogView = observer((p: { board: IBoard }) => {
-  // temporally just can see one day.
-  const [startDate, setStartDate] = useState(dateUtils.getCurrentStartDay)
-  const [endDate, setEndDate] = useState(dateUtils.sumDay(startDate, 1))
-  const logRange = p.board.getHistoryBetween(startDate.getTime(), endDate.getTime())
-  if (!logRange) return null
+  const date = useDatePicker()
 
-  console.log("tamanio history", logRange.length)
-  const prev = p.board.getPrevMark(startDate.getTime())
-  // if a mark time is before the current start day, count the time from the start of the current day.
-  if (prev && prev.timer) {
-    console.log("prev is available")
-    const m = new TemporalMark(dateUtils.getCurrentStartDay().getTime(), prev.timer)
-    logRange.unshift(m)
-  }
-  const items = []
-  for (let i = 0; i < logRange!.length - 1; ++i) {
-    if (!logRange[i].timer) continue
-    items.push((<Item key={i}><MarkTimeEntry startMark={logRange[i]} endMark={logRange[i + 1]} /></Item>))
-  }
-  console.log("ztamanio items", items.length)
-  // if the last timer is still not stopped, render it with undefined endMark
-  const last = logRange.at(-1)
-  if (last && last!.timer)
-    items.push((<Item key='-1'><MarkTimeEntry startMark={last} endMark={undefined} /></Item>))
-  console.log("ztamanio 2 items", items.length)
   return (<Box sx={{ width: '100vh' }}>
     <Stack spacing={2}>
-      {items}
+      <RangeDatePicker dateRange={date} />
+      <ListHistory marks={getHistoryRange(date.startDate, date.endDate, p.board)} />
+    </Stack>
+  </Box>)
+})
+
+
+export const SummaryView = observer((p: { board: IBoard }) => {
+  const date = useDatePicker()
+
+  return (<Box sx={{ width: '100vh' }}>
+    <Stack spacing={2}>
+      <RangeDatePicker dateRange={date} />
+      <SumaryHistory summary={getSummaryRange(date.startDate, date.endDate, p.board)} />
     </Stack>
   </Box>)
 })

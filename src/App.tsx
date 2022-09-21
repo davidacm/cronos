@@ -7,7 +7,7 @@ import Container from '@mui/material/Container';
 
 import './App.css'
 import { beepSlower } from "./logic/utils"
-import { EditTimers, LogView, Stopwatch } from "./views/boardComponent"
+import { EditTimers, LogView, Stopwatch, SummaryView } from "./views/boardComponent"
 import { ITimer, factory, store } from "./logic/store"
 
 // window.store = store
@@ -58,11 +58,12 @@ function App() {
     <div className="App">
       <Container maxWidth="sm">
         <Box sx={{ width: '100%' }}>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider', position:'fixed', top:0, maxHeight:20}}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', position:'fixed', top:10, maxHeight:20}}>
             <Tabs value={value} onChange={handleChange} aria-label="basic tabs example">
               <Tab label="stopwatch" {...a11yProps(0)} />
               <Tab label="edit timers" {...a11yProps(1)} />
               <Tab label="activity log" {...a11yProps(2)} />
+              <Tab label="Summary" {...a11yProps(3)} />
             </Tabs>
           </Box>
           <TabPanel value={value} index={0} >
@@ -73,6 +74,9 @@ function App() {
           </TabPanel>
           <TabPanel value={value} index={2}>
             <LogView board={store.currentBoard!} />
+          </TabPanel>
+          <TabPanel value={value} index={3} >
+            <SummaryView board={store.currentBoard!} />
           </TabPanel>
         </Box>
       </Container>

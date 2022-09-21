@@ -2,7 +2,7 @@ import { Instance, types } from "mobx-state-tree"
 import persist from "./localStorage"
 type ReferenceIdentifier = string | number
 
-import { getNearest, uuid } from "./utils"
+import { dateUtils, getNearest, uuid } from "./utils"
 
 
 const Timer = types.model("timer", {
@@ -38,21 +38,6 @@ function getMarkTime(mark: IMarkTime): number {
 }
 
 
-/**
- * this is used when the mark need to be updated temporally, for example if a timer is running before the given range and in the current range.
- */
-export class TemporalMark implements IMarkTime {
-    time: number
-    timer: ITimer
-    constructor(time: number, timer: ITimer) {
-        this.time = time
-        this.timer = timer
-    }
-    setTimer(timer: ITimer) {
-        this.timer = timer
-    }
-}
-
 const Board = types.model("board", {
     id: types.identifier,
     name: types.string,
@@ -65,14 +50,14 @@ const Board = types.model("board", {
             return self.history.at(-1)
         },
 
-        getHistoryBetween(start: number, end: number): IMarkTime[] | undefined {
+        getHistoryBetween(start: number, end: number): IMarkTime[] {
             const posStart = getNearest(start, self.history, getMarkTime)
             const posEnd = getNearest(end, self.history, getMarkTime, true)
             if (posStart !== -1 && posEnd !== -1) {
                 const r = self.history.slice(posStart, posEnd + 1)
                 if (r.length > 0) return r
             }
-            return undefined
+            return []
         },
 
         getPrevMark(time: number): IMarkTime | undefined {
@@ -225,3 +210,88 @@ function initialize() {
 export const { factory, store } = initialize()
 persist("Cronos", store)
 
+
+
+/**
+ * an easier way to show the mark time data.
+ * if the duration is undefined, the duration should be updated dynamically.
+ */
+export class ReportMark implements IMarkTime {
+    time: number
+    duration: number | undefined
+    timer: ITimer
+    constructor(timer: ITimer, time: number, duration?: number) {
+        this.time = time
+        this.timer = timer
+        this.duration = duration
+    }
+    setTimer(timer: ITimer) {
+        this.timer = timer
+    }
+}
+
+
+/**
+ * an easier way to show the summary of a timer.
+ * the total duration and the number of times the timer has been activated, are saved here.
+ */
+export class TimerSummary implements ITimer {
+    id: string
+    name: string
+    lastDuration: number = 0
+    count: number = 0
+    constructor(id: string, name: string) {
+        this.id = id
+        this.name = name
+    }
+    setName(name: string) {
+        this.name = name
+    }
+
+    setLastDuration(duration: number) {
+        this.lastDuration += duration
+    }
+
+    addDuration(duration: number) {
+        this.lastDuration += duration
+    }
+    addCount() {
+        ++this.count
+    }
+}
+
+export function getHistoryRange(startDate: Date, endDate: Date, board: IBoard): ReportMark[] {
+    const logRange = board.getHistoryBetween(startDate.getTime(), endDate.getTime())
+    const prev = board.getPrevMark(startDate.getTime())
+    // if a mark time is before the current start day, count the time from the start of the current day.
+    if (prev && prev.timer) {
+        const m = new ReportMark(prev.timer, dateUtils.getCurrentStartDay().getTime())
+        logRange.unshift(m)
+    }
+
+    const items: ReportMark[] = []
+    for (let i = 0; i < logRange!.length - 1; ++i) {
+        const m = logRange[i]
+        if (!m.timer) continue
+        items.push(new ReportMark(m.timer, m.time, logRange[i + 1].time - m.time))
+    }
+
+    // verify if the last mark is still running.
+    const last = logRange.at(-1)
+    if (last && last!.timer)
+        items.push(new ReportMark(last.timer, last.time))
+    return items
+}
+
+export function getSummaryRange(startDate: Date, endDate: Date, board: IBoard): TimerSummary[] {
+    const marks = getHistoryRange(startDate, endDate, board)
+    const summary: Record<string, TimerSummary> = {}
+    for (const m of marks) {
+        if (!(m.timer!.id in summary))
+            summary[m.timer!.id] = new TimerSummary(m.timer!.id, m.timer!.name)
+        const duration = m.duration ? m.duration : factory.generator.getCurrentTime() - m.time
+        summary[m.timer!.id].addDuration(duration)
+        summary[m.timer!.id].addCount()
+    }
+    return Object.values(summary)
+}
