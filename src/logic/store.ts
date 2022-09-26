@@ -64,6 +64,11 @@ const Board = types.model("board", {
             const pos = getNearest(time, self.history, getMarkTime, true)
             if (pos !== -1) return self.history[pos]
             return undefined
+        },
+        getNextMark(time: number): IMarkTime | undefined {
+            const pos = getNearest(time, self.history, getMarkTime)
+            if (pos !== -1) return self.history[pos]
+            return undefined
         }
     }))
     .actions(self => ({
@@ -262,10 +267,14 @@ export class TimerSummary implements ITimer {
 
 export function getHistoryRange(startDate: Date, endDate: Date, board: IBoard): ReportMark[] {
     const logRange = board.getHistoryBetween(startDate.getTime(), endDate.getTime())
+    let greatestTime = factory.generator.getCurrentTime()
+    if (greatestTime > endDate.getTime()) greatestTime = endDate.getTime()
     const prev = board.getPrevMark(startDate.getTime())
-    // if a mark time is before the current start day, count the time from the start of the current day.
+    // if a mark time is before the current start range, count the time from the start of the current range to the first mark of the current range.
     if (prev && prev.timer) {
-        const m = new ReportMark(prev.timer, dateUtils.getCurrentStartDay().getTime())
+        const time = startDate.getTime()
+        const duration = (logRange.length > 0? logRange[0].time: greatestTime) -time
+        const m = new ReportMark(prev.timer, time, duration)
         logRange.unshift(m)
     }
 
@@ -276,10 +285,10 @@ export function getHistoryRange(startDate: Date, endDate: Date, board: IBoard): 
         items.push(new ReportMark(m.timer, m.time, logRange[i + 1].time - m.time))
     }
 
-    // verify if the last mark is still running.
+    // set the duration for the last mark in the range.
     const last = logRange.at(-1)
     if (last && last!.timer)
-        items.push(new ReportMark(last.timer, last.time))
+        items.push(new ReportMark(last.timer, last.time, greatestTime -last.time))
     return items
 }
 
